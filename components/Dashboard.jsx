@@ -23,8 +23,17 @@ import {
   verticalListSortingStrategy 
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { useSelector, useDispatch } from 'react-redux';
+import { 
+  addTask, 
+  updateTask, 
+  deleteTask, 
+  setCurrentTask, 
+  setIsEditMode, 
+  setShowTaskModal,
+  moveTask
+} from '../store/taskSlice';
 
-// Task Card component that can be clicked but not sorted
 const TaskCard = ({ task, onClick }) => {
   return (
     <Card 
@@ -48,7 +57,6 @@ const TaskCard = ({ task, onClick }) => {
   );
 };
 
-// Sortable Task Card component
 const SortableTaskCard = ({ task, onTaskClick }) => {
   const {
     attributes,
@@ -74,7 +82,6 @@ const SortableTaskCard = ({ task, onTaskClick }) => {
       <Card 
         className="cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow"
         onClick={(e) => {
-          // Stop propagation to prevent drag handler conflicts
           e.stopPropagation();
           onTaskClick(task);
         }}
@@ -97,7 +104,6 @@ const SortableTaskCard = ({ task, onTaskClick }) => {
   );
 };
 
-// Column component
 const TaskColumn = ({ id, title, color, tasks, onTaskClick }) => {
   return (
     <div className="flex flex-col h-full" data-column-id={id}>
@@ -120,19 +126,12 @@ const TaskColumn = ({ id, title, color, tasks, onTaskClick }) => {
 };
 
 export default function Dashboard() {
-  const [showTaskModal, setShowTaskModal] = useState(false);
-  const [currentTask, setCurrentTask] = useState(null);
-  const [isEditMode, setIsEditMode] = useState(false);
+  const dispatch = useDispatch();
+  const { tasks, currentTask, isEditMode, showTaskModal } = useSelector((state) => state.tasks);
   const [activeDragId, setActiveDragId] = useState(null);
-  const [tasks, setTasks] = useState({
-    todo: [],
-    doing: [],
-    done: []
-  });
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
-      // Increased activation delay to better distinguish between click and drag
       activationConstraint: {
         delay: 150,
         tolerance: 5,
@@ -144,64 +143,36 @@ export default function Dashboard() {
   );
 
   const handleAddTask = (task) => {
-    setTasks((prevTasks) => ({
-      ...prevTasks,
-      [task.category]: [...prevTasks[task.category], task]
-    }));
+    dispatch(addTask({ task }));
     closeTaskModal();
   };
 
   const handleUpdateTask = (updatedTask) => {
-    setTasks((prevTasks) => {
-      const newTasks = { ...prevTasks };
-      
-      // First, remove from all categories to handle category changes
-      Object.keys(newTasks).forEach(category => {
-        newTasks[category] = newTasks[category].filter(task => task.id !== updatedTask.id);
-      });
-      
-      // Then add to the correct category
-      newTasks[updatedTask.category] = [...newTasks[updatedTask.category], updatedTask];
-      
-      return newTasks;
-    });
-    
+    dispatch(updateTask({ updatedTask }));
     closeTaskModal();
   };
 
   const handleDeleteTask = (taskId) => {
-    setTasks((prevTasks) => {
-      const newTasks = { ...prevTasks };
-      
-      // Remove from all categories
-      Object.keys(newTasks).forEach(category => {
-        newTasks[category] = newTasks[category].filter(task => task.id !== taskId);
-      });
-      
-      return newTasks;
-    });
-    
+    dispatch(deleteTask({ taskId }));
     closeTaskModal();
   };
 
   const handleTaskClick = (task) => {
-    // Since we're using both click and drag, we need to ensure
-    // they don't conflict. The click should open the edit modal.
-    setCurrentTask(task);
-    setIsEditMode(true);
-    setShowTaskModal(true);
+    dispatch(setCurrentTask(task));
+    dispatch(setIsEditMode(true));
+    dispatch(setShowTaskModal(true));
   };
 
   const closeTaskModal = () => {
-    setShowTaskModal(false);
-    setCurrentTask(null);
-    setIsEditMode(false);
+    dispatch(setShowTaskModal(false));
+    dispatch(setCurrentTask(null));
+    dispatch(setIsEditMode(false));
   };
 
   const openAddTaskModal = () => {
-    setCurrentTask(null);
-    setIsEditMode(false);
-    setShowTaskModal(true);
+    dispatch(setCurrentTask(null));
+    dispatch(setIsEditMode(false));
+    dispatch(setShowTaskModal(true));
   };
 
   const handleDragStart = (event) => {
@@ -214,29 +185,22 @@ export default function Dashboard() {
     
     if (!active || !over) return;
     
-    // Find the task being dragged
-    let draggedTask = null;
     let sourceColumn = null;
-    
-    // Find which column the dragged task is in
     for (const column of Object.keys(tasks)) {
       const task = tasks[column].find(t => t.id === active.id);
       if (task) {
-        draggedTask = { ...task };
         sourceColumn = column;
         break;
       }
     }
     
-    if (!draggedTask || !sourceColumn) return;
+    if (!sourceColumn) return;
     
-    // Find the column where the task was dropped
     const overElement = document.elementFromPoint(
       event.activatorEvent.clientX,
       event.activatorEvent.clientY
     );
     
-    // Function to traverse up the DOM to find column ID
     const findColumnId = (element) => {
       let current = element;
       while (current) {
@@ -250,20 +214,12 @@ export default function Dashboard() {
     
     const targetColumn = findColumnId(overElement);
     
-    // Only process if we found a valid target column and it's different from source
     if (targetColumn && targetColumn !== sourceColumn) {
-      setTasks(prevTasks => {
-        const newTasks = { ...prevTasks };
-        
-        // Remove from source column
-        newTasks[sourceColumn] = newTasks[sourceColumn].filter(t => t.id !== draggedTask.id);
-        
-        // Update category property and add to target column
-        const updatedTask = { ...draggedTask, category: targetColumn };
-        newTasks[targetColumn] = [...newTasks[targetColumn], updatedTask];
-        
-        return newTasks;
-      });
+      dispatch(moveTask({ 
+        taskId: active.id, 
+        sourceColumn, 
+        targetColumn 
+      }));
     }
   };
 
@@ -273,7 +229,6 @@ export default function Dashboard() {
     { id: "done", title: "Done", color: "bg-green-100 dark:bg-green-900" }
   ];
 
-  // Find active task being dragged (for drag overlay)
   let activeTask = null;
   if (activeDragId) {
     for (const column of Object.keys(tasks)) {
@@ -313,19 +268,16 @@ export default function Dashboard() {
           ))}
         </div>
         
-        {/* Drag overlay shows what's being dragged */}
         <DragOverlay>
           {activeTask ? <TaskCard task={activeTask} onClick={() => {}} /> : null}
         </DragOverlay>
       </DndContext>
 
-      {/* Task Modal for both Add and Edit */}
       <TaskModal 
         show={showTaskModal} 
         onClose={closeTaskModal} 
         onSubmit={isEditMode ? handleUpdateTask : handleAddTask}
         onDelete={isEditMode ? handleDeleteTask : null}  
-        initialData={currentTask}
         editMode={isEditMode}
       />
     </div>

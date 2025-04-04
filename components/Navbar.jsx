@@ -18,7 +18,6 @@ export default function Navbar({ session }) {
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
 
-  // Theme toggle needs to be client-side only
   useState(() => {
     setMounted(true);
   }, []);

@@ -31,44 +31,40 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { useSelector } from 'react-redux';
 
 export default function TaskModal({ 
   show, 
   onClose, 
   onSubmit, 
   onDelete, 
-  initialData, 
   editMode = false 
 }) {
+  const currentTask = useSelector((state) => state.tasks.currentTask);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("todo");
   const [subtasks, setSubtasks] = useState([""]);
   const [showDeleteAlert, setShowDeleteAlert] = useState(false);
 
-  // Reset form or populate with initial data when modal opens
   useEffect(() => {
     if (show) {
-      if (initialData && Object.keys(initialData).length > 0) {
-        // Set values from the existing task
-        setTitle(initialData.title || "");
-        setDescription(initialData.description || "");
-        setCategory(initialData.category || "todo");
-        
-        // Handle subtasks - ensure we have at least one empty field if none exist
-        const taskSubtasks = initialData.subtasks && initialData.subtasks.length > 0 
-          ? [...initialData.subtasks] 
+      if (currentTask && Object.keys(currentTask).length > 0) {
+        setTitle(currentTask.title || "");
+        setDescription(currentTask.description || "");
+        setCategory(currentTask.category || "todo");
+        const taskSubtasks = currentTask.subtasks && currentTask.subtasks.length > 0 
+          ? [...currentTask.subtasks] 
           : [""];
         setSubtasks(taskSubtasks);
       } else {
-        // Reset form for new task
         setTitle("");
         setDescription("");
         setCategory("todo");
         setSubtasks([""]);
       }
     }
-  }, [show, initialData]);
+  }, [show, currentTask]);
 
   const handleSubtaskChange = (index, value) => {
     const updatedSubtasks = [...subtasks];
@@ -88,11 +84,10 @@ export default function TaskModal({
   const handleSubmit = (e) => {
     e.preventDefault();
     
-    // Filter out empty subtasks
     const filteredSubtasks = subtasks.filter(task => task.trim() !== "");
     
     const taskData = {
-      id: initialData?.id || Date.now().toString(),
+      id: currentTask?.id || Date.now().toString(),
       title,
       description,
       category,
@@ -103,8 +98,8 @@ export default function TaskModal({
   };
 
   const handleDeleteConfirm = () => {
-    if (onDelete && initialData?.id) {
-      onDelete(initialData.id);
+    if (onDelete && currentTask?.id) {
+      onDelete(currentTask.id);
     }
     setShowDeleteAlert(false);
   };
@@ -210,7 +205,6 @@ export default function TaskModal({
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation Dialog */}
       <AlertDialog open={showDeleteAlert} onOpenChange={setShowDeleteAlert}>
         <AlertDialogContent>
           <AlertDialogHeader>
